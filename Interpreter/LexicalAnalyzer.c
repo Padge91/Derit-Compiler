@@ -3,13 +3,14 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
+#include <fcntl.h>
 
+const char* class_string = "class";
 const char* main_string = "main";
 const char* record_string = "record";
 const char* int_string = "int";
 const char* float_string = "float";
 const char* char_string = "char";
-const char* str_string = "string";
 const char* boolean_string = "boolean";
 const char* if_string = "if";
 const char* else_string = "else";
@@ -30,18 +31,33 @@ struct token_list list;
 //--------------------------------------------------------------------------------------------------
 
 //creates and returns a pointer to the token list
-struct token_list create_list(char* s){
+struct token_list create_list(char* file_name){
 	list.size = 0;
 	list.first = NULL;
 	list.last = NULL;
-	
-	//break file down to one line, and then send it into process_line method
+	int line_number = 0;
 
-	printf("in create_list call\n");
-	if (process_line(&list, s)) 
+
+	FILE* file;
+	char* line;
+	int * bytes_read;
+	
+	//use file name to open file and read it
+	
+	if ((file = fopen(file_name, "r") == NULL)
 	{
-		printf("error returned in process_line method");
-	}	
+		printf("Error in accessing file");
+		return NULL;		
+	}
+
+	while (getline(&line, bytes_read, file) != -1)
+	{
+		(*line_number)++;
+		if (process_line(&list, line, &line_number)) 
+		{
+			printf("error returned in process_line method");
+		}	
+	}
 
 	return list;
 }
@@ -49,15 +65,12 @@ struct token_list create_list(char* s){
 //----------------------------------------------------------------------------------------------
 
 //processes line by line the file given
-int process_line(struct token_list* l, char* line)
+int process_line(struct token_list* l, char* line, int* line_num)
 {
-	printf("starting process_line call\n");
-	printf("String: %s\n", line);
 	
 	int done = 0, index = 0, i = 0, string_length = 0;
 	token_type type;	
 
-	printf("starting process_line 2\n");	
 
 	if ((l == NULL) || (line == NULL)) 
 	{
@@ -65,18 +78,12 @@ int process_line(struct token_list* l, char* line)
 		return 0;
 	}
 
-	printf("list and string are not null\n");
 
-	//error in next line somewhere
-
-	printf("string length: %u\n", (unsigned)strlen(line));
 	string_length = (int)strlen(line);
-	printf("string_length is assigned as %d\n", string_length);
 
 	//make char array lower case
 	for (i = 0; i < string_length; i++) 
 	{
-		printf("making lowercase loop: %d\n", i);		
 
 		if ((isalpha(line[i])) && (isupper(line[i])))
 		{
@@ -84,24 +91,19 @@ int process_line(struct token_list* l, char* line)
 		}
 	}
 
-	printf("starting workhorse code\n");
 	i = 0;
 	//actual workhorse piece of the code
 	while (!done)
 	{
-		
 		if (index == strlen(line)) 
 		{
-			printf("finished\n");
 			done = 1;
 		}
 		else 
 		{
-			printf("is not done\n");
 
 			if (isdigit(line[i])) 
 			{
-				printf("if it is a digit\n");
 				i = index;
 
 				while ((isdigit(line[i])) && (i < strlen(line)))
@@ -134,7 +136,6 @@ int process_line(struct token_list* l, char* line)
 			}
 			else if (isalpha(line[i]))
 			{
-				printf("if it is a character\n");
 				i = index;
 				char* string;
 				
@@ -155,6 +156,9 @@ int process_line(struct token_list* l, char* line)
 					if (!strcmp(lexeme, main_string)) {
 						type = MAIN;
 					}	
+					else if (!strcmp(lexeme, class_string)){
+						type = CLASS;
+					}
 					else if (!strcmp(lexeme, record_string)) {
 						type = RECORD;
 					}
@@ -166,9 +170,6 @@ int process_line(struct token_list* l, char* line)
 					}
 					else if (!strcmp(lexeme, char_string)){
 						type = CHAR_DECLARE;
-					}
-					else if (!strcmp(lexeme, str_string)){
-						type = STRING_DECLARE;
 					}
 					else if (!strcmp(lexeme, boolean_string)){
 						type = BOOLEAN_DECLARE;
@@ -215,7 +216,6 @@ int process_line(struct token_list* l, char* line)
 			{
 				i = index;
 
-				printf("if it is a grammar thing\n");
 
 				//not a digit or character - must be some other operator
 				if (line[i] == '{') {
@@ -293,7 +293,6 @@ int process_line(struct token_list* l, char* line)
 					type = MODULO;
 				}
 				else if (line[i] == ' ') {
-					printf("found whitespace\n");
 					i++;
 					index = i;
 					continue;
@@ -324,9 +323,7 @@ int process_line(struct token_list* l, char* line)
 			}
 
 			tok = malloc(sizeof(struct token));
-			make_token(tok, type, lexeme, 1);
-			printf("right before add to list call\n");
-			printf("token address: %p\n", tok);
+			make_token(tok, type, lexeme, line_num);
 			add_to_list(l, tok);
 		}
 	}
@@ -342,10 +339,8 @@ void  add_to_list(struct token_list* l, struct token* t)
 {
 	//error when accessing next
 
-	printf("started adding to list. size: %d\n", l -> size);	
 	if (l -> size) {
 
-		printf("because list isnt empty:1\n");
 		l -> last -> next = malloc(sizeof(struct token));
 		l -> last -> next = t;
 		l -> last = t;		
@@ -353,7 +348,6 @@ void  add_to_list(struct token_list* l, struct token* t)
 
 	}
 	else {
-		printf("because list is empty\n");
 		l -> first = malloc(sizeof(struct token));
 		l -> last = malloc(sizeof(struct token));
 		l->first = t;
@@ -361,7 +355,6 @@ void  add_to_list(struct token_list* l, struct token* t)
 	}
 	
 	l->size++;
-	printf("actually add to list\n");
 }
 
 //-------------------------------------------------------------------------------------------
@@ -393,12 +386,10 @@ int is_empty(struct token_list* l)
 
 void make_token(struct token* t, token_type type, char* lexeme, int line_num)
 {
-	printf("token address: %p\n", t);
 	t -> next = 0;
 	t -> token = type;
 	t -> lineNumber = line_num;
 	t -> lexeme = lexeme;
-	printf("actually made token: lexeme: %s\n", t -> lexeme);
 }
 
 //--------------------------------------------------------------------------------------------
